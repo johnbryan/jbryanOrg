@@ -11,9 +11,9 @@ def hello():
     """comentario"""
     return '<html><body><h1>Welcome to John\'s web site!</h1></body></html>'
 
-#@app.route('/puzzle')
-#def hello():
-#    return '<html><body>Puzzle page under development...</body></html>'
+@app.route('/puzzle')
+def puzzle():
+    return '<html><body>Puzzle page under development...</body></html>'
 
 
 @app.errorhandler(404)
