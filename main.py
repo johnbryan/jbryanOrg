@@ -1,19 +1,27 @@
-from flask import Flask
+import os
+from flask import Flask, render_template
+#from flask.ext.sqlalchemy import SQLAlchemy
+
 app = Flask(__name__)
 app.config['DEBUG'] = True
 
 # Note: We don't need to call run() since our application is embedded within
 # the App Engine WSGI application server.
 
+#app.config.from_object(os.environ['APP_SETTINGS'])
+#app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+#db = SQLAlchemy(app)
 
-@app.route('/')
-def hello():
-    """comentario"""
-    return '<html><body><h1>Welcome to John\'s web site!</h1></body></html>'
+#from models import Result
+
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    return render_template('index.html')
 
 @app.route('/puzzle')
 def puzzle():
-    return '<html><body>Puzzle page under development...</body></html>'
+    return render_template('test_canvas.html')
 
 
 @app.errorhandler(404)
