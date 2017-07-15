@@ -8,7 +8,8 @@ app.config['DEBUG'] = True
 
 @app.route('/')
 def hello():
-    return '<html><body><h1>Welcome to John's web site!</h1></body></html>'
+    """comentario"""
+    return '<html><body><h1>Welcome to John\'s web site!</h1></body></html>'
 
 #@app.route('/puzzle')
 #def hello():
