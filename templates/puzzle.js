@@ -1,7 +1,3 @@
-<html>
-<head>
-  <!-- <script src="templates/puzzle.js"></script> -->
-  <script>
 const deg60 = Math.PI*1/3;
 const r = 50;
 const h = r * Math.sqrt(3)/2;
@@ -75,11 +71,12 @@ let triangles = new Set();
 // set of sets of 2 pts
 let edges = new Set();
 
-for (const ptx of pts.keys()) {
+/*for (const ptx of pts.keys()) {
   for (const pty of pts.get(ptx)) {
     const adjList = [[ptx-1, pty-.5], [ptx, pty-1], [ptx+1, pty-.5]];
     const pt = [ptx, pty];
 
+    debugger;
     for (adjPt of adjList) {
       if (isOnBoard(...adjPt)) {
         edges.add(new Set([pt, adjPt]))
@@ -92,7 +89,7 @@ for (const ptx of pts.keys()) {
       triangles.add(new Set([pt, adjList[1], adjList[2]]));
     }
   }
-}
+}*/
 
 console.log("tri: " + triangles.length);
 console.log("edges: " + edges.length);
@@ -270,7 +267,7 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   myBoard.draw();
   pieces.forEach((p) => p.draw());
-  pts.forEach(([x,y]) => drawPoint(x,y));
+  //pts.forEach({x:(ySet)}=>)
 }
 
 // cc = counterclockwise (boolean)
@@ -340,16 +337,3 @@ document.onkeydown = function(e) {
 };
 
 setInterval(draw, 20);
-  </script>
-  <style type="text/css">
-    canvas { border: 1px solid black; }
-  </style>
-</head>
-<body onload="initialize();">
-  <div>
-    Puzzle:
-  </div>
-  <canvas id="puzzle" height="700" width="900">
-  </canvas>
-</body>
-</html>
