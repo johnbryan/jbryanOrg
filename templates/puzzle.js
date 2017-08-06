@@ -1,5 +1,5 @@
 const deg60 = Math.PI*1/3;
-const r = 50;
+const r = 70;
 const h = r * Math.sqrt(3)/2;
 
 // outerPts are relative to this position
@@ -15,106 +15,121 @@ let ctx;
 
 let nextZ = 0;
 
-const outerPts = [[ 0, 0],
-                  [-1, 0.5],
-                  [-2, 0],
-                  [-3, 0.5],
-                  [-3, 1.5],
-                  [-3, 2.5],
-                  [-2, 3],
-                  [-1, 3.5],
-                  [ 0, 4],
-                  [ 1, 3.5],
-                  [ 2, 3],
-                  [ 3, 2.5],
-                  [ 3, 1.5],
-                  [ 3, 0.5],
-                  [ 2, 0],
-                  [ 1, 0.5],
-                 ];
-
-// basically: select * from outerPts order by x, y
-const sortedOuterPts = outerPts.slice().sort(([x1,y1], [x2,y2]) => (x1==x2) ? y1-y2 : x1-x2);
-
-function drawPoint(x, y) {
-  ctx.beginPath();
-  ctx.arc(x * xFactor + boardX, y * yFactor + boardY, r/20, 0, 2*Math.PI, false);
-  ctx.stroke();
-}
-
-//map of x values to sets of corresponding y values
-let pts = new Map();
-
-function isOnBoard(pt_x, pt_y) {
-  return pts.has(pt_x) && pts.get(pt_x).has(pt_y);
-}
-
-let [lastX,lastY] = sortedOuterPts[0];
-pts.set(lastX, new Set([lastY]));
-for (let i=1; i < sortedOuterPts.length; i++) {
-  const [xi, yi] = sortedOuterPts[i];
-
-  if (xi == lastX) {
-    for (let y=lastY+1; y<=yi; y+=1) {
-      pts.get(xi).add(y);
-    }
-  }
-  else {
-    pts.set(xi, new Set([yi]));
-  }
-  [lastX,lastY] = [xi, yi];
-}
-
-// set of sets of 3 pts
-let triangles = new Set();
-
-// set of sets of 2 pts
-let edges = new Set();
-
-/*for (const ptx of pts.keys()) {
-  for (const pty of pts.get(ptx)) {
-    const adjList = [[ptx-1, pty-.5], [ptx, pty-1], [ptx+1, pty-.5]];
-    const pt = [ptx, pty];
-
-    debugger;
-    for (adjPt of adjList) {
-      if (isOnBoard(...adjPt)) {
-        edges.add(new Set([pt, adjPt]))
-      }
-    }
-    if (isOnBoard(...adjList[0]) && isOnBoard(...adjList[1])) {
-      triangles.add(new Set([pt, adjList[0], adjList[1]]));
-    }
-    if (isOnBoard(...adjList[1]) && isOnBoard(...adjList[2])) {
-      triangles.add(new Set([pt, adjList[1], adjList[2]]));
-    }
-  }
-}*/
-
-console.log("tri: " + triangles.length);
-console.log("edges: " + edges.length);
+const outerPts = [
+  [ 0, 0],
+  [-1, 0.5],
+  [-2, 0],
+  [-3, 0.5],
+  [-3, 1.5],
+  [-3, 2.5],
+  [-2, 3],
+  [-1, 3.5],
+  [ 0, 4],
+  [ 1, 3.5],
+  [ 2, 3],
+  [ 3, 2.5],
+  [ 3, 1.5],
+  [ 3, 0.5],
+  [ 2, 0],
+  [ 1, 0.5],
+];
 
 class board {
-  constructor(x, y) {
+  constructor(x, y, outerPts) {
     this.x = x;
     this.y = y;
-    this.pts = outerPts;
+    this.outerPts = outerPts;
+    this.pts = this.getAllPoints(outerPts);
+    const pts = this.pts;
+
+    // set of triangle centers
+    let triangles = new Set();
+
+    // set of edge centers
+    let edges = new Set();
+
+    for (const ptx of pts.keys()) {
+      for (const pty of pts.get(ptx)) {
+        const adjList = [[ptx-1, pty-.5], [ptx, pty-1], [ptx+1, pty-.5]];
+        const pt = [ptx, pty];
+
+        for (const adjPt of adjList) {
+          if (this.isOnBoard(...adjPt)) {
+            edges.add([(ptx+adjPt[0])/2, (pty+adjPt[1])/2]);
+          }
+        }
+        if (this.isOnBoard(...adjList[0]) && this.isOnBoard(...adjList[1])) {
+          const x = (ptx + adjList[0][0] + adjList[1][0]) / 3;
+          const y = (pty + adjList[0][1] + adjList[1][1]) / 3;
+          triangles.add([x, y]);
+        }
+        if (this.isOnBoard(...adjList[1]) && this.isOnBoard(...adjList[2])) {
+          const x = (ptx + adjList[1][0] + adjList[2][0]) / 3;
+          const y = (pty + adjList[1][1] + adjList[2][1]) / 3;
+          triangles.add([x, y]);
+        }
+      }
+    }
+
+    console.log("tri: " + triangles.size);
+    console.log("edges: " + edges.size);
+
+    this.triangles = triangles;
+    this.edges = edges;
+
+  }
+
+  getAllPoints(outerPts) {
+    // basically: select * from outerPts order by x, y
+    const sortedOuterPts = outerPts.slice().sort(([x1,y1], [x2,y2]) => (x1==x2) ? y1-y2 : x1-x2);
+
+    //map of x values to sets of corresponding y values
+    let pts = new Map();
+
+    let [lastX,lastY] = sortedOuterPts[0];
+    pts.set(lastX, new Set([lastY]));
+    for (let i=1; i < sortedOuterPts.length; i++) {
+      const [xi, yi] = sortedOuterPts[i];
+
+      if (xi == lastX) {
+        for (let y=lastY+1; y<=yi; y+=1) {
+          pts.get(xi).add(y);
+        }
+      }
+      else {
+        pts.set(xi, new Set([yi]));
+      }
+      [lastX,lastY] = [xi, yi];
+    }
+
+    return pts;
   }
 
   draw() {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    drawArcCycle(this.pts.map(([x,y]) => [x*h, -y*r]));
+    drawArcCycle(this.outerPts.map(([x,y]) => [x*h, -y*r]));
 
     ctx.fillStyle = "gray";
     ctx.fill();
 
     ctx.restore();
   }
+
+  drawPoint(x, y) {
+    ctx.beginPath();
+    ctx.arc(x * xFactor + boardX, y * yFactor + boardY, r/20, 0, 2*Math.PI, false);
+    ctx.stroke();
+  }
+
+  isOnBoard(pt_x, pt_y) {
+    return this.pts.has(pt_x) && this.pts.get(pt_x).has(pt_y);
+  }
+
 }
 
-myBoard = new board(boardX, boardY);
+myBoard = new board(boardX, boardY, outerPts);
 
 class line {
   constructor(x1, y1, x2, y2) {
@@ -231,6 +246,7 @@ pieces = [
 ];
 
 selectedPiece = pieces[5];
+selectedPiece.bringToTop();
 
 function clickHandler(event) {
   const x = event.pageX - canvas.offsetLeft;
@@ -321,16 +337,16 @@ document.onkeydown = function(e) {
   else {
     switch (e.keyCode) {
       case 37:
-        selectedPiece.move(-1, .5);
+        selectedPiece.move(-1, 0);
         break;
       case 38:
-        selectedPiece.move(0, 1);
+        selectedPiece.move(0, .5);
         break;
       case 39:
-        selectedPiece.move(1, -.5);
+        selectedPiece.move(1, 0);
         break;
       case 40:
-        selectedPiece.move(0, -1);
+        selectedPiece.move(0, -.5);
         break;
     }
   }
