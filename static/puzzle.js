@@ -207,7 +207,7 @@ class piece {
   setZ(z) {
     this.z = z;
   }
-  
+
   isAbove(otherPiece) {
     return this.z - otherPiece.z;
   }
@@ -282,7 +282,7 @@ class pieceSet {
     this.selectedPiece = piece;
     this.bringToTop(piece);
   }
-  
+
   bringToTop(piece) {
     piece.setZ(this.nextZ);
     this.nextZ++;
@@ -294,7 +294,7 @@ class pieceSet {
       piece.draw();
     }
   }
-  
+
   arrange(posList) {
     if (posList.length != this.pieces.length) {
       console.log("arrange() was called with wrong number of positions.")
@@ -304,7 +304,7 @@ class pieceSet {
       this.pieces[i].updatePosition(...posList[i]);
     }
   }
-  
+
   arrangeSolved() {
     this.arrange(
       [ [-1, 0.5,  1],
@@ -322,7 +322,7 @@ class pieceSet {
       ]
     );
   }
-  
+
   arrangeScattered() {
     this.arrange(
       [ [-4, -2, 0],
@@ -331,12 +331,12 @@ class pieceSet {
         [-4, 4, 0],
         [-2, 5, 0],
         [ 0, 6, 0],
-        [ 2, 5, 0],
-        [ 4, 3, 0],
-        [ 5, 1, 0],
+        [ 3, 4, 0],
+        [ 4, 2, 0],
+        [ 0, 0, 0],
         [ 5, -1, 0],
-        [ 0, -2, 0],
-        [ 4, -2, 0],
+        [-1, -2, 0],
+        [ 2, -2, 0],
       ]
     );
   }
@@ -470,7 +470,7 @@ document.onkeydown = function(e) {
         pSet.arrangeSolved();
         break;
       case 83: //s
-        pSet.arrangeScattered();
+        //pSet.arrangeScattered();
         break;
     }
   }
