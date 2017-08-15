@@ -15,7 +15,7 @@ app.config['DEBUG'] = True
 #from models import Result
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
     return render_template('index.html')
 

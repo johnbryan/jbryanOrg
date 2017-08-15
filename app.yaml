@@ -3,7 +3,10 @@ api_version: 1
 threadsafe: yes
 
 handlers:
-- url: .*
+- url: /static
+  static_dir: static
+
+- url: /.*
   script: main.app
 
 libraries:

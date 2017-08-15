@@ -1,4 +1,5 @@
-const deg60 = Math.PI*1/3;
+const deg30 = Math.PI / 6;
+const deg60 = Math.PI / 3;
 const r = 70;
 const h = r * Math.sqrt(3)/2;
 
@@ -34,6 +35,27 @@ const outerPts = [
 
 function coordHash(x,y) {
   return Math.floor(x*1000) + Math.floor(y*10);
+}
+
+function polarToRect(dist, theta) {
+  return [dist * Math.cos(theta), dist * Math.sin(theta)];
+}
+
+function addCoords(p1, p2) {
+  return [p1[0] + p2[0], p1[1] + p2[1]];
+}
+
+function drawPoint(x, y, isTrueCoords) {
+  if (!isTrueCoords) {
+    x = x * xFactor + boardX;
+    y = y * yFactor + boardY;
+  }
+
+  if (ctx) {
+    ctx.beginPath();
+    ctx.arc(x, y, r/20, 0, 2*Math.PI, false);
+    ctx.stroke();
+  }
 }
 
 class line {
@@ -89,8 +111,9 @@ class board {
     }
   }
 
+  // return list of all valid positions for pieces, as [x,y] pairs
   getAllPoints(outerPts) {
-    // basically: select * from outerPts order by x, y
+    // select * from outerPts order by x, y
     const sortedOuterPts = outerPts.slice().sort(([x1,y1], [x2,y2]) => (x1==x2) ? y1-y2 : x1-x2);
 
     let pts = [];
@@ -127,12 +150,6 @@ class board {
     ctx.restore();
   }
 
-  drawPoint(x, y) {
-    ctx.beginPath();
-    ctx.arc(x * xFactor + boardX, y * yFactor + boardY, r/20, 0, 2*Math.PI, false);
-    ctx.stroke();
-  }
-
   //could do const time instead of linear with 2d array or coord map
   containsPoint(pt) {
     const [ptx, pty] = pt;
@@ -158,11 +175,14 @@ class piece {
     this.y = 0;
     this.theta = 0;
     this.pieceSet = pieceSet;
+    this.occupiedTriangles = [];
+    this.occupiedEdges = [];
 
     this.trueX;
     this.trueY;
     this.trueTheta;
     this.calcTrueCoords();
+    this.firstEdge;
 
     this.z = 0;
   }
@@ -173,6 +193,15 @@ class piece {
     this.trueX = this.x * xFactor + boardX;
     this.trueY = this.y * yFactor + boardY;
     this.trueTheta = this.theta * thetaFactor;
+
+    const trueXY = [this.trueX, this.trueY];
+    this.occupiedEdges = [
+      addCoords(trueXY, polarToRect(r/2, this.trueTheta)),
+      addCoords(trueXY, polarToRect(h, this.trueTheta - deg30)),
+      addCoords(trueXY, polarToRect(h, this.trueTheta - 3*deg30)),
+      addCoords(trueXY, polarToRect(h, this.trueTheta - 5*deg30)),
+      addCoords(trueXY, polarToRect(-r/2, this.trueTheta)),
+    ];
 
     // todo: mark occupied/vacated edges and triangles
   }
@@ -198,6 +227,8 @@ class piece {
     ctx.stroke();
 
     ctx.restore();
+
+    //this.occupiedEdges.forEach((edgePt) => drawPoint(edgePt[0], edgePt[1], true));
   }
 
   isSelected() {
@@ -253,6 +284,9 @@ class piece {
     }
 
     const noOverlappingTriangles = true;
+    //get coordHash of center of each of the three triangles
+
+
     const noOverlappingEdges = true;
 
     return noOverlappingTriangles && noOverlappingEdges;
@@ -359,7 +393,22 @@ pSet = new pieceSet([
 
 pSet.arrangeSolved();
 
+function getAllSolutions(pieceSet) {
+  //have a current partial solution
+  //loop thru all valid positions for piece 1, then 2 given 1's location, etc
+  //when solved add to list
 
+  //put piece at all myBoard.pts (remainingPoints as dynamic array to optimize?)
+  //if piece isInValidPosition, then update partial solution, go to next piece
+  //
+
+  //maybe make this recursive, and call with partial pieceSet and partial board.
+
+  solutions = [];
+  partialSolution = [];
+
+
+}
 
 function clickHandler(event) {
   const x = event.pageX - canvas.offsetLeft;
@@ -417,7 +466,7 @@ function drawArc(x1,y1,x2,y2,cc) {
   var centerY = avgY - diffX * ratio;
 
   var startAngle = Math.atan2(y1 - centerY, x1 - centerX);
-  var endAngle = Math.atan2(y2 - centerY, x2 - centerX);  // = start - deg60
+  var endAngle = Math.atan2(y2 - centerY, x2 - centerX);
   ctx.arc(centerX, centerY, r, startAngle, endAngle, cc);
 }
 
@@ -470,7 +519,7 @@ document.onkeydown = function(e) {
         pSet.arrangeSolved();
         break;
       case 83: //s
-        //pSet.arrangeScattered();
+        pSet.arrangeScattered();
         break;
     }
   }
