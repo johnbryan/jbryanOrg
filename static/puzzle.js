@@ -1,3 +1,4 @@
+const deg15 = Math.PI / 12;
 const deg30 = Math.PI / 6;
 const deg60 = Math.PI / 3;
 const r = 70;
@@ -13,6 +14,8 @@ thetaFactor = Math.PI/6;
 
 let canvas;
 let ctx;
+
+const DEBUG = false;
 
 const outerPts = [
   [ 0, 0],
@@ -33,8 +36,13 @@ const outerPts = [
   [ 1, 0.5],
 ];
 
-function coordHash(x,y) {
-  return Math.floor(x*1000) + Math.floor(y*10);
+function coordHash(x, y, isTrueCoords) {
+  if (!isTrueCoords) {
+    x = x * xFactor + boardX;
+    y = y * yFactor + boardY;
+  }
+
+  return Math.round(x)*10000 + Math.round(y);
 }
 
 function polarToRect(dist, theta) {
@@ -56,6 +64,12 @@ function drawPoint(x, y, isTrueCoords) {
     ctx.arc(x, y, r/20, 0, 2*Math.PI, false);
     ctx.stroke();
   }
+}
+
+function drawPointFromHash(ptHash) {
+  const x = Math.floor(ptHash/10000);
+  const y = ptHash%10000;
+  drawPoint(x,y,true);
 }
 
 class line {
@@ -81,34 +95,35 @@ class board {
     this.y = y;
     this.outerPts = outerPts;
     this.pts = this.getAllPoints(outerPts);
-    this.ptSet = new Set(this.pts.map(([ptx,pty])=>coordHash(ptx,pty)));
+    this.ptSet = new Set(this.pts.map(([ptx,pty])=>coordHash(ptx, pty, false)));
 
-    // map: coordHash => occupied (bool)
-    this.triangles = new Map();
-    this.edges = new Map();
+    // map: coordHash => piece
+    this.points = new Map();
 
     for (const pt of this.pts) {
       const [ptx, pty] = pt;
       const adjList = [[ptx-1, pty-.5], [ptx, pty-1], [ptx+1, pty-.5]];
 
       for (const adjPt of adjList) {
-        if (this.containsPoint(adjPt)) {
+        if (this.containsPoint(...adjPt)) {
           const x = (ptx+adjPt[0]) / 2;
           const y = (pty+adjPt[1]) / 2;
-          this.edges.set(coordHash(x,y), false);
+          this.points.set(coordHash(x,y), null);
         }
       }
-      if (this.containsPoint(adjList[0]) && this.containsPoint(adjList[1])) {
+      if (this.containsPoint(...adjList[0]) && this.containsPoint(...adjList[1])) {
         const x = (ptx + adjList[0][0] + adjList[1][0]) / 3;
         const y = (pty + adjList[0][1] + adjList[1][1]) / 3;
-        this.triangles.set(coordHash(x,y), false);
+        this.points.set(coordHash(x,y), null);
       }
-      if (this.containsPoint(adjList[1]) && this.containsPoint(adjList[2])) {
+      if (this.containsPoint(...adjList[1]) && this.containsPoint(...adjList[2])) {
         const x = (ptx + adjList[1][0] + adjList[2][0]) / 3;
         const y = (pty + adjList[1][1] + adjList[2][1]) / 3;
-        this.triangles.set(coordHash(x,y), false);
+        this.points.set(coordHash(x,y), null);
       }
     }
+
+    console.log(this.points.size);
   }
 
   // return list of all valid positions for pieces, as [x,y] pairs
@@ -143,23 +158,21 @@ class board {
 
     drawArcCycle(this.outerPts.map(([x,y]) => [x*h, -y*r]));
 
-    ctx.fillStyle = "gray";
+    ctx.fillStyle = "white";
     ctx.fill();
     ctx.stroke();
 
     ctx.restore();
-  }
 
-  //could do const time instead of linear with 2d array or coord map
-  containsPoint(pt) {
-    const [ptx, pty] = pt;
-    return this.ptSet.has(coordHash(ptx, pty));
-    /*for (const [x,y] of this.pts) {
-      if (ptx == x && pty == y) {
-        return true;
+    if (DEBUG) {
+      for (const pt of this.ptSet) {
+        //drawPointFromHash(pt);
       }
     }
-    return false;*/
+  }
+
+  containsPoint(x, y) {
+    return this.ptSet.has(coordHash(x, y, false));
   }
 
 }
@@ -169,25 +182,24 @@ myBoard = new board(boardX, boardY, outerPts);
 class piece {
   // x in terms of h
   // y in terms of -r
-  constructor(edges, pieceSet) {
+  constructor(edges, game) {
     this.edges = edges;
     this.x = 0;
     this.y = 0;
     this.theta = 0;
-    this.pieceSet = pieceSet;
-    this.occupiedTriangles = [];
-    this.occupiedEdges = [];
+    this.game = game;
+    this.occupiedPoints = [];
+    this.isValidPos = true;
+    this.overlapPoint = null;
 
-    this.trueX;
-    this.trueY;
-    this.trueTheta;
-    this.calcTrueCoords();
-    this.firstEdge;
+    this.trueX = 0;
+    this.trueY = 0;
+    this.trueTheta = 0;
 
     this.z = 0;
   }
 
-  // get real x,y,theta pos
+  // get real x,y,theta
   // also mark which edges and triangles it occupies
   calcTrueCoords() {
     this.trueX = this.x * xFactor + boardX;
@@ -195,15 +207,85 @@ class piece {
     this.trueTheta = this.theta * thetaFactor;
 
     const trueXY = [this.trueX, this.trueY];
-    this.occupiedEdges = [
-      addCoords(trueXY, polarToRect(r/2, this.trueTheta)),
-      addCoords(trueXY, polarToRect(h, this.trueTheta - deg30)),
-      addCoords(trueXY, polarToRect(h, this.trueTheta - 3*deg30)),
-      addCoords(trueXY, polarToRect(h, this.trueTheta - 5*deg30)),
-      addCoords(trueXY, polarToRect(-r/2, this.trueTheta)),
-    ];
 
-    // todo: mark occupied/vacated edges and triangles
+    //vacate old spot
+    if (this.isValidPos) {
+      const success = this.game.updateOccupancyOrReturnFalse(this.occupiedPoints, true);
+      if (!success) console.log("Failed vacating current position.");
+    }
+    const occupiedTriangles = [];
+    const occupiedEdges = [];
+    const occupiedCorners = [];
+    this.overlapPoint = null;
+
+    //find occupied edges
+    const relativeEdges = [
+      polarToRect(h, this.trueTheta - 5*deg30),
+      polarToRect(h, this.trueTheta - 3*deg30),
+      polarToRect(h, this.trueTheta - 1*deg30),
+      polarToRect(r/2, this.trueTheta),
+      polarToRect(-r/2, this.trueTheta),
+    ];
+    for (let i=0; i<5; i++) {
+      if (this.edges[i]) {
+        const [x,y] = addCoords(trueXY, relativeEdges[i]);
+        occupiedEdges.push(coordHash(x, y, true));
+      }
+    }
+    /*const alsoEdges = [
+      polarToRect(r/2, this.trueTheta - deg30),
+      polarToRect(r/2, this.trueTheta - 2*deg30),
+      polarToRect(r/2, this.trueTheta - 3*deg30),
+      polarToRect(r/2, this.trueTheta - 4*deg30),
+      polarToRect(r/2, this.trueTheta - 5*deg30),
+    ];
+    for (const relXY of alsoEdges) {
+      const [x,y] = addCoords(trueXY, relXY);
+      occupiedEdges.push(coordHash(x, y, true));
+    }*/
+
+    //find occupied triangles
+    const relativeTriangles = [
+      polarToRect(h*2/3, this.trueTheta - 1*deg30),
+      //polarToRect(h*2/3, this.trueTheta - 2*deg30),
+      polarToRect(h*2/3, this.trueTheta - 3*deg30),
+      //polarToRect(h*2/3, this.trueTheta - 4*deg30),
+      polarToRect(h*2/3, this.trueTheta - 5*deg30),
+    ];
+    for (const relXY of relativeTriangles) {
+      const [x,y] = addCoords(trueXY, relXY);
+      occupiedTriangles.push(coordHash(x, y, true));
+    }
+
+    //add points in from corners
+    /*const d = Math.sqrt(2) * r * Math.sin(deg15);
+    const relativeCorners = [
+      addCoords(polarToRect(r, this.trueTheta), polarToRect(-d, this.trueTheta + deg30)),
+      polarToRect(r-d, this.trueTheta - deg60),
+      polarToRect(r-d, this.trueTheta - 2 * deg60),
+      addCoords(polarToRect(-r, this.trueTheta), polarToRect(d, this.trueTheta - deg30)),
+    ];
+    for (const relXY of relativeCorners) {
+      const [x,y] = addCoords(trueXY, relXY);
+      occupiedCorners.push(coordHash(x, y, true));
+    }*/
+
+    this.occupiedPoints = occupiedTriangles.concat(occupiedEdges); //.concat(occupiedCorners);
+
+    //determine if occupied points overlap anything
+    /*if (this.game.board.containsPoint(this.x, this.y)) {
+      this.overlapPoint = this.game.findOverlap(this.occupiedPoints);
+      this.isValidPos = (this.overlapPoint == null);
+    } else {
+      this.isValidPos = false;
+    }
+
+    //occupy new spot if valid
+    if (this.isValidPos) {
+      this.game.updateOccupancy(this.occupiedPoints, false);
+    }*/
+
+    this.isValidPos = this.game.updateOccupancyOrReturnFalse(this.occupiedPoints, false);
   }
 
   draw() {
@@ -219,20 +301,25 @@ class piece {
                  this.edges.map((edge) => !edge)
                 );
 
-    ctx.fillStyle = "beige";
+    ctx.fillStyle = "rgba(160, 100, 60, 0.4)"; //or "beige";
     ctx.fill();
 
     ctx.lineWidth = this.isSelected() ? 5 : 1;
-    ctx.strokeStyle = this.isInValidPosition() ? "blue" : "red";
+    ctx.strokeStyle = this.isValidPos ? "blue" : "red";
     ctx.stroke();
 
     ctx.restore();
 
-    //this.occupiedEdges.forEach((edgePt) => drawPoint(edgePt[0], edgePt[1], true));
+    if (DEBUG && this.isSelected()) {
+      for (const ptHash of this.occupiedPoints) {
+        drawPointFromHash(ptHash);
+      }
+      //drawPointFromHash(this.overlapPoint);
+    }
   }
 
   isSelected() {
-    return (this == this.pieceSet.selectedPiece);
+    return (this == this.game.selectedPiece);
   }
 
   setZ(z) {
@@ -260,6 +347,12 @@ class piece {
     this.calcTrueCoords();
   }
 
+  flip() {
+    const newEdges = [this.edges[2], this.edges[1], this.edges[0], this.edges[3], this.edges[4]];
+    this.edges = newEdges;
+    this.calcTrueCoords();
+  }
+
   updatePosition(x, y, theta) {
     this.x = x;
     this.y = y;
@@ -267,33 +360,20 @@ class piece {
     this.calcTrueCoords();
   }
 
-  potentiallyClicked(clickX, clickY) {
-    const relX = clickX - this.trueX;
-    const relY = clickY - this.trueY;
-    const clickTheta = Math.atan2(clickY - this.trueY, clickX - this.trueX);
+  //todo: more exact checking to support tiny overlap checking
+  containsPoint(x, y) {
+    const relX = x - this.trueX;
+    const relY = y - this.trueY;
+    const theta = Math.atan2(y - this.trueY, x - this.trueX);
     const distFromPosition = Math.sqrt(relX*relX + relY*relY);
 
-    const relTheta = ((this.trueTheta - clickTheta) + 2*Math.PI) % (2*Math.PI);
+    const relTheta = ((this.trueTheta - theta) + 2*Math.PI) % (2*Math.PI);
 
     return distFromPosition < h && 0 <= relTheta && relTheta <= Math.PI;
   }
-
-  isInValidPosition() {
-    if (! this.pieceSet.board.containsPoint([this.x, this.y])) {
-      return false;
-    }
-
-    const noOverlappingTriangles = true;
-    //get coordHash of center of each of the three triangles
-
-
-    const noOverlappingEdges = true;
-
-    return noOverlappingTriangles && noOverlappingEdges;
-  }
 }
 
-class pieceSet {
+class game {
   constructor(pieceEdgesList, selectedIndex, board) {
     this.board = board;
     this.pieces = [];
@@ -321,6 +401,33 @@ class pieceSet {
     piece.setZ(this.nextZ);
     this.nextZ++;
     this.drawOrder.sort((p1, p2) => p1.isAbove(p2));
+  }
+
+  /*findOverlap(points) {
+    for (const xyHash of points) {
+      if (this.board.points.get(xyHash)) {
+        return xyHash;
+      }
+    }
+
+    return null;
+  }*/
+
+  updateOccupancyOrReturnFalse(points, vacate) {
+    for (const ptHash of points) {
+      if (!this.board.points.has(ptHash)) {
+        return false;
+      }
+      if (!vacate && this.board.points.get(ptHash)) {
+        return false;
+      }
+    }
+
+    const piece = vacate ? null : this.selectedPiece;
+    for (const ptHash of points) {
+      this.board.points.set(ptHash, piece);
+    }
+    return true;
   }
 
   draw() {
@@ -359,24 +466,24 @@ class pieceSet {
 
   arrangeScattered() {
     this.arrange(
-      [ [-4, -2, 0],
-        [-5, 0, 0],
-        [-5, 2, 0],
-        [-4, 4, 0],
-        [-2, 5, 0],
-        [ 0, 6, 0],
-        [ 3, 4, 0],
-        [ 4, 2, 0],
-        [ 0, 0, 0],
-        [ 5, -1, 0],
-        [-1, -2, 0],
-        [ 2, -2, 0],
+      [ [-4, -2, 1],
+        [-5, 0, 1],
+        [-5, 2, 1],
+        [-4, 4, 1],
+        [-2, 5, 1],
+        [ 0, 6, 1],
+        [ 3, 4, 1],
+        [ 4, 2, 1],
+        [ 0, 0, 1],
+        [ 5, -1, 1],
+        [-1, -2, 1],
+        [ 2, -2, 1],
       ]
     );
   }
 }
 
-pSet = new pieceSet([
+myGame = new game([
   [0,0,0,1,1],
   [1,1,1,1,0],
   [1,0,1,1,0],
@@ -391,9 +498,9 @@ pSet = new pieceSet([
   [1,0,1,1,1],
 ], 5, myBoard);
 
-pSet.arrangeSolved();
+myGame.arrangeSolved();
 
-function getAllSolutions(pieceSet) {
+function getAllSolutions(game) {
   //have a current partial solution
   //loop thru all valid positions for piece 1, then 2 given 1's location, etc
   //when solved add to list
@@ -416,8 +523,8 @@ function clickHandler(event) {
 
   //replace this loop with some cool one-line filter function?
   let clickedPieces = [];
-  for (const piece of pSet.pieces) {
-    if (piece.potentiallyClicked(x, y)) {
+  for (const piece of myGame.pieces) {
+    if (piece.containsPoint(x, y)) {
       clickedPieces.push(piece);
     }
   }
@@ -433,7 +540,7 @@ function clickHandler(event) {
       }
     }
 
-    pSet.select(selectedPiece);
+    myGame.select(selectedPiece);
   }
 }
 
@@ -449,9 +556,7 @@ function initialize() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   myBoard.draw();
-  //pieces.forEach((p) => p.draw());
-  pSet.draw();
-  //pts.forEach({x:(ySet)}=>)
+  myGame.draw();
 }
 
 // cc = counterclockwise (boolean)
@@ -494,32 +599,38 @@ document.onkeydown = function(e) {
   if (e.shiftKey) {
     switch (e.keyCode) {
       case 37:
-        pSet.selected().rotate(-1);
+        myGame.selected().rotate(-2);
+        break;
+      case 38:
+        myGame.selected().flip();
         break;
       case 39:
-        pSet.selected().rotate(1);
+        myGame.selected().rotate(2);
+        break;
+      case 40:
+        myGame.selected().flip();
         break;
     }
   }
   else {
     switch (e.keyCode) {
       case 37:
-        pSet.selected().move(-1, 0);
+        myGame.selected().move(-1, 0);
         break;
       case 38:
-        pSet.selected().move(0, .5);
+        myGame.selected().move(0, .5);
         break;
       case 39:
-        pSet.selected().move(1, 0);
+        myGame.selected().move(1, 0);
         break;
       case 40:
-        pSet.selected().move(0, -.5);
+        myGame.selected().move(0, -.5);
         break;
       case 82: //r
-        pSet.arrangeSolved();
+        myGame.arrangeSolved();
         break;
       case 83: //s
-        pSet.arrangeScattered();
+        myGame.arrangeScattered();
         break;
     }
   }
