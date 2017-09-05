@@ -21,7 +21,7 @@ def index():
 
 @app.route('/puzzle')
 def puzzle():
-    return render_template('test_canvas.html')
+    return render_template('puzzle.html')
 
 
 @app.errorhandler(404)
