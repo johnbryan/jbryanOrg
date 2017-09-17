@@ -20,7 +20,7 @@ function addCoords(p1, p2) {
 }
 
 
-function drawPoint(ctx, x, y, isTrueCoords) {
+function drawPoint(ctx, x, y, isTrueCoords, opt_color) {
   if (!isTrueCoords) {
     x = x * xFactor + boardX;
     y = y * yFactor + boardY;
@@ -29,6 +29,7 @@ function drawPoint(ctx, x, y, isTrueCoords) {
   if (ctx) {
     ctx.beginPath();
     ctx.arc(x, y, r/20, 0, 2*Math.PI, false);
+    ctx.strokeStyle = opt_color ? opt_color : "black";
     ctx.stroke();
   }
 }

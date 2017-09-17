@@ -155,6 +155,11 @@ class board {
     ctx.stroke();
 
     ctx.restore();
+
+    for (const pt of this.positions) {
+      const [x,y] = pt;
+      drawPoint(ctx, x, y, false);
+    }
   }
 
   containsPoint(point) {
@@ -277,6 +282,10 @@ class piece {
 
     ctx.restore();
 
+    if (this.isSelected()) {
+      drawPoint(ctx, this.trueX, this.trueY, true, (this.isValidPos ? "blue" : "red"));
+    }
+
     if (DEBUG && this.isSelected()) {
       for (const ptHash of this.occupiedPoints) {
         drawPointFromHash(ctx, ptHash);
@@ -335,6 +344,10 @@ class piece {
     this.calcTrueCoords();
   }
 
+  setTrueXY(x, y) {
+
+  }
+
   //todo: more exact checking
   containsPoint(x, y) {
     const relX = x - this.trueX;
@@ -365,21 +378,40 @@ class game {
     this.drawOrder = [...this.pieces]; //copy
     this.selectedPiece;
     this.select(this.pieces[selectedIndex]);
+
+    //click vs selected piece position
+    this.relClickX;
+    this.relClickY;
+    this.dragging = false;
   }
 
   selected() {
     return this.selectedPiece;
   }
 
-  select(piece) {
+  select(piece, clickX, clickY) {
     this.selectedPiece = piece;
     this.bringToTop(piece);
+
+    this.relClickX = clickX - this.selectedPiece.trueX;
+    this.relClickY = clickY - this.selectedPiece.trueY;
   }
 
   bringToTop(piece) {
     piece.z = this.nextZ;
     this.nextZ++;
     this.drawOrder.sort((p1, p2) => p1.above(p2));
+  }
+
+  drag(mouseX, mouseY) {
+    const trueX = mouseX - this.relClickX;
+    const trueY = mouseY - this.relClickY;
+
+    this.selectedPiece.setPosition(
+        Math.round((trueX - boardX) / xFactor),
+        Math.round((trueY - boardY) / yFactor * 2) / 2,
+        this.selectedPiece.theta,
+        this.selectedPiece.flipped);
   }
 
   updateOccupancyOrReturnFalse(piece, points, vacate) {
@@ -473,43 +505,6 @@ class game {
     );
   }
 
-  // Recursive. Call with all pieces.
-  // Recursion: we have some pieces places,
-  //            Now solve where to put next piece,
-  //            then call with one fewer remaining.
-  /*findSolutions(remainingPieces) {
-    recursiveCalls++;
-    if (remainingPieces.length == 0) {
-      solutions.push(this.getCurrentArrangement());
-      console.log("Found a solution! Still looking for more...")
-      return;
-    }
-
-    //this.select(remainingPieces[0]);
-    const piece = remainingPieces[0];
-    let flipOptions = piece.symmetrical ? [false] : [false, true];
-
-    for (const pos of this.board.positions) {
-      const [x,y] = pos;
-      //add shortcut if we know no theta/flip will work here, like this spot is surrounded.
-  
-      for (const theta of [-5,-3,-1, 1, 3, 5]) {
-        for (const flipped of flipOptions) {
-          piece.setPosition(x, y, theta, flipped);
-
-          //setTimeout(draw, 250);
-          if (piece.isValidPos && !piece.isStupidPos) {
-            //let temp = this.getCurrentArrangement();
-            this.findSolutions(remainingPieces.slice(1, remainingPieces.length));
-            //this.arrange(temp);
-
-            this.select(remainingPieces[0]);
-          }
-        }
-      }
-    }
-  }*/
-
   //i is the triangle number to continue from
   solve(i, remainingPieces) {
     //const space = "  ".repeat(6-remainingPieces.length);
@@ -588,31 +583,6 @@ myGame.arrangeSolved();
 
 drawInterval = setInterval(draw, 20);
 
-/*function solveOldAlgorithm() {
-  clearInterval(drawInterval);
-  console.time('Time to find solutions');
-
-  solutions = [];
-  triedPositions = 0;
-  recursiveCalls = 0;
-
-  const remaining = [];
-  for (const piece of myGame.pieces) {
-    if (!piece.isValidPos) {
-      remaining.push(piece);
-    }
-  }
-  myGame.findSolutions(remaining);
-
-  console.log("Found " + solutions.length + " solutions!");
-  console.log("Tried " + triedPositions + " positions!");
-  console.log("Recursive calls: " + recursiveCalls);
-
-  console.timeEnd('Time to find solutions');
-  if (solutions.length) myGame.arrange(solutions[0]);
-  setInterval(draw, 20);
-}*/
-
 function solve() {
   clearInterval(drawInterval);
   console.time('Time to solve');
@@ -673,8 +643,21 @@ function clickHandler(event) {
 
   if (clickedPieces.length) {
     clickedPieces.sort((p1, p2) => p2.above(p1));  //sort top to bottom
-    myGame.select(clickedPieces[0]);
+    myGame.select(clickedPieces[0], x, y);
   }
+
+  myGame.dragging = true;
+}
+
+function onMouseMove(event) {
+  const x = event.pageX - canvas.offsetLeft;
+  const y = event.pageY - canvas.offsetTop;
+
+  if (myGame.dragging) myGame.drag(x, y);
+}
+
+function onMouseUp(event) {
+  myGame.dragging = false;
 }
 
 function initialize() {
@@ -682,7 +665,10 @@ function initialize() {
   if (canvas.getContext) {
     ctx = canvas.getContext('2d');
   }
-  canvas.addEventListener('click', clickHandler, false);
+  //canvas.addEventListener('click', clickHandler, false);
+  canvas.addEventListener('mousedown', clickHandler, false);
+  canvas.addEventListener('mousemove', onMouseMove, false);
+  canvas.addEventListener('mouseup', onMouseUp, false);
 }
 
 function draw() {
