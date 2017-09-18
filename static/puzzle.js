@@ -16,8 +16,6 @@ let solutions = [];
 let triedPositions = 0;
 let recursiveCalls = 0;
 
-const DEBUG = false;
-
 let almostArranged =
     [ [-1, -1,  1, false],
       [-2, -1,   -5, false],
@@ -158,7 +156,7 @@ class board {
 
     for (const pt of this.positions) {
       const [x,y] = pt;
-      drawPoint(ctx, x, y, false);
+      drawPoint(ctx, x, y, false, "gray");
     }
   }
 
@@ -194,7 +192,7 @@ class piece {
 
   // get real x,y,theta
   // also mark which edges and triangles it occupies
-  calcTrueCoords() {
+  calcTrueCoords(solve) {
     this.trueX = this.x * xFactor + boardX;
     this.trueY = this.y * yFactor + boardY;
     this.trueTheta = this.theta * thetaFactor;
@@ -257,6 +255,8 @@ class piece {
     }
 
     this.isValidPos = this.game.updateOccupancyOrReturnFalse(this, this.occupiedPoints, false);
+
+    if (solve) solveFromSolutions();
   }
 
   draw() {
@@ -282,14 +282,14 @@ class piece {
 
     ctx.restore();
 
+    // Draw rotation/center point
     if (this.isSelected()) {
-      drawPoint(ctx, this.trueX, this.trueY, true, (this.isValidPos ? "blue" : "red"));
-    }
-
-    if (DEBUG && this.isSelected()) {
-      for (const ptHash of this.occupiedPoints) {
-        drawPointFromHash(ctx, ptHash);
-      }
+      ctx.beginPath();
+      ctx.arc(this.trueX, this.trueY, r/13, 0, 2*Math.PI, false);
+      ctx.fillStyle = this.isValidPos ? "blue" : "red";
+      ctx.fill();
+      ctx.strokeStyle = this.isValidPos ? "blue" : "red";
+      ctx.stroke();
     }
   }
 
@@ -304,7 +304,7 @@ class piece {
   move(dx, dy) {
     this.x += dx;
     this.y += dy;
-    this.calcTrueCoords();
+    this.calcTrueCoords(true);
   }
 
   rotate(dtheta) {
@@ -315,15 +315,15 @@ class piece {
     else if (this.theta <= -6) {
       this.theta = this.theta + 12;
     }
-    this.calcTrueCoords();
+    this.calcTrueCoords(true);
   }
 
-  flip() {
+  flip(calc) {
     if (!this.symmetrical) {
       const newEdges = [this.edges[2], this.edges[1], this.edges[0], this.edges[4], this.edges[3]];
       this.edges = newEdges;
       this.flipped = !this.flipped;
-      this.calcTrueCoords();
+      if (calc) this.calcTrueCoords(true);
     }
   }
 
@@ -340,12 +340,8 @@ class piece {
     this.x = x;
     this.y = y;
     this.theta = theta;
-    if (flipped != this.flipped) this.flip();
-    this.calcTrueCoords();
-  }
-
-  setTrueXY(x, y) {
-
+    if (flipped != this.flipped) this.flip(false);
+    this.calcTrueCoords(false);
   }
 
   //todo: more exact checking
@@ -467,6 +463,7 @@ class game {
 
   arrangeAlmost() {
     this.arrange(almostArranged);
+    solveFromSolutions();
   }
 
   arrangeSolved() {
@@ -485,6 +482,7 @@ class game {
         [ 2, 3,   -5, false],
       ]
     );
+    solveFromSolutions();
   }
 
   arrangeScattered() {
@@ -503,6 +501,7 @@ class game {
         [ 2, -2, 1, false],
       ]
     );
+    solveFromSolutions();
   }
 
   //i is the triangle number to continue from
@@ -516,8 +515,6 @@ class game {
       return;
     }
 
-    //let failed = true;
-
     //find the first empty triangle
     while (myGame.board.occupiedPoints.get(this.board.triangles[i].hash)) {
       i++;
@@ -526,32 +523,24 @@ class game {
     //if we found one
     if (i < this.board.triangles.length) {
       const triangle = this.board.triangles[i];
-      //console.log(space + triangle.points);
 
       for (const point of triangle.points) {
         const [x,y] = point;
 
         for (let j=0; j<remainingPieces.length; j++) {
           const piece = remainingPieces[j];
-          //if (piece.edges[1]==1) debugger;
           const flipOptions = piece.symmetrical ? [false] : [false, true];
 
           for (const theta of [-5, -3, -1, 1, 3, 5]) {
             for (const flipped of flipOptions) {
 
-              //if (x==-2 && y==1 && theta==-5 && flipped==false) debugger;
-
               piece.setPosition(x, y, theta, flipped);
               if (this.board.occupiedPoints.get(triangle.hash)==piece &&
                   piece.isValidPos && !piece.isStupidPos) {
 
-                //console.log(space + "Placed: "+piece.edges + " at (" + x + "," + y + "," + theta + "," + flipped + ")");
-
                 const nextRemainingPieces = remainingPieces.slice();
                 nextRemainingPieces.splice(j, 1);
                 this.solve(i+1, nextRemainingPieces);
-                //failed = false;
-                //this.arrangeInvisible(nextRemainingPieces);
               }
               this.arrangeInvisible(remainingPieces);
             }
@@ -559,7 +548,6 @@ class game {
         }
       }
     }
-    //if (failed) console.log(space + "no solutions here");
   }
 
 }
@@ -578,8 +566,6 @@ myGame = new game([
   [1,0,1,0,0],
   [1,0,1,1,1],
 ], 5, new board(boardX, boardY, outerPts));
-
-myGame.arrangeSolved();
 
 drawInterval = setInterval(draw, 20);
 
@@ -627,6 +613,24 @@ function solveFromSolutions() {
       solutions.push(arrangement);
     }
   }
+
+  if (document.getElementById("solutionCount")) {
+    document.getElementById("solutionCount").innerText = solutions.length;
+
+    const solutionSelect = document.getElementById("solutionSelect");
+    const solutionSelectOptions = solutionSelect.options;
+    for (let i=solutionSelectOptions.length-1; i>=0; i--) {
+      solutionSelectOptions.remove(i);
+    }
+    for (let i=0; i<solutions.length; i++) {
+      solutionSelectOptions.add(new Option(i+1, i));
+    }
+
+
+    solutionSelect.onchange = function() {
+      myGame.arrange(solutions[solutionSelect.selectedIndex]);
+    }
+  }
 }
 
 function clickHandler(event) {
@@ -658,6 +662,7 @@ function onMouseMove(event) {
 
 function onMouseUp(event) {
   myGame.dragging = false;
+  solveFromSolutions();
 }
 
 function initialize() {
@@ -669,6 +674,8 @@ function initialize() {
   canvas.addEventListener('mousedown', clickHandler, false);
   canvas.addEventListener('mousemove', onMouseMove, false);
   canvas.addEventListener('mouseup', onMouseUp, false);
+
+  myGame.arrangeScattered();
 }
 
 function draw() {
@@ -702,13 +709,13 @@ document.onkeydown = function(e) {
         myGame.selected().rotate(-2);
         break;
       case 38:  //up
-        myGame.selected().flip();
+        myGame.selected().flip(true);
         break;
       case 39:  //right
         myGame.selected().rotate(2);
         break;
       case 40:  //down
-        myGame.selected().flip();
+        myGame.selected().flip(true);
         break;
       case 65:  //a
         almostArranged = myGame.getCurrentArrangement();
@@ -731,7 +738,6 @@ document.onkeydown = function(e) {
     switch (e.keyCode) {
       case 13:  //enter
         solveFromSolutions();
-        console.log("Still " + solutions.length + " solutions remaining.");
         break;
       case 37:  //left
         myGame.selected().move(-1, 0);
