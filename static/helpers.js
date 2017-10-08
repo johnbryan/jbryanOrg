@@ -2,83 +2,108 @@ const deg15 = Math.PI / 12;
 const deg30 = Math.PI / 6;
 const deg60 = Math.PI / 3;
 
-function coordHash(x, y, isTrueCoords) {
-  if (!isTrueCoords) {
-    x = x * xFactor + boardX;
-    y = y * yFactor + boardY;
+const r = 70;
+const h = r * Math.sqrt(3)/2;
+
+// outerPts are relative to this position
+const boardX = 400;
+const boardY = 500;
+
+const xFactor = h;
+const yFactor = -r;
+const thetaFactor = Math.PI/6;
+
+class xyCoord {
+  constructor(x, y, isTrueCoords) {
+    // default values assume falseCoords
+    this.x = x;
+    this.y = y;
+    this.trueX = x * xFactor + boardX;
+    this.trueY = y * yFactor + boardY;
+
+    if (isTrueCoords) {
+      this.x = Math.round((x - boardX) / xFactor),
+      this.y = Math.round((y - boardY) / yFactor * 2) / 2,
+      this.trueX = x;
+      this.trueY = y;
+    }
   }
 
-  return Math.round(x)*10000 + Math.round(y);
-}
-
-function polarToRect(dist, theta) {
-  return [dist * Math.cos(theta), dist * Math.sin(theta)];
-}
-
-function addCoords(p1, p2) {
-  return [p1[0] + p2[0], p1[1] + p2[1]];
-}
-
-
-function drawPoint(ctx, x, y, isTrueCoords, opt_color) {
-  if (!isTrueCoords) {
-    x = x * xFactor + boardX;
-    y = y * yFactor + boardY;
+  hash() {
+    return Math.round(this.trueX)*10000 + Math.round(this.trueY);
   }
 
+  static unhash(hashedValue) {
+    return new xyCoord(Math.floor(ptHash/10000), ptHash%10000, true);
+  }
+
+  equals(that) {
+    return this.x==that.x && this.y==that.y;
+  }
+
+  addCoord(that) {
+    return new xyCoord(this.x + that.x, this.y + that.y, false);
+  }
+
+  static averageCoords(coordList) {
+    const n = coordList.length;
+    const sumX = coordList.reduce((total, coord) => total+coord.x, 0);
+    const sumY = coordList.reduce((total, coord) => total+coord.y, 0);
+    return new xyCoord(sumX/n, sumY/n, false);
+  }
+}
+
+function coordFromPolar(center, dist, theta) {
+  return new xyCoord(
+      center.trueX + dist * Math.cos(theta),
+      center.trueY + dist * Math.sin(theta),
+      true);
+}
+
+function drawPoint(ctx, coord, opt_color) {
   if (ctx) {
     ctx.beginPath();
-    ctx.arc(x, y, r/20, 0, 2*Math.PI, false);
+    ctx.arc(coord.trueX, coord.trueY, r/20, 0, 2*Math.PI, false);
     ctx.strokeStyle = opt_color ? opt_color : "black";
     ctx.stroke();
   }
 }
 
-function drawPointFromHash(ctx, ptHash) {
-  const x = Math.floor(ptHash/10000);
-  const y = ptHash%10000;
-  drawPoint(ctx, x,y,true);
-}
-
-
-
 // cc = counterclockwise (boolean)
-function drawArc(ctx, x1,y1,x2,y2,cc) {
-  var diffX = x2 - x1;
-  var diffY = y2 - y1;
-  var avgX = (x1 + x2) / 2;
-  var avgY = (y1 + y2) / 2;
-  var ratio = Math.sqrt(3)/2 * (cc ? 1 : -1);
+function drawArc(ctx, p1, p2, cc) {
+  const diffX = p2.trueX - p1.trueX;
+  const diffY = p2.trueY - p1.trueY;
+  const avg = xyCoord.averageCoords([p1, p2]);
+  const ratio = Math.sqrt(3)/2 * (cc ? 1 : -1);
 
-  var centerX = avgX + diffY * ratio;
-  var centerY = avgY - diffX * ratio;
+  // center of the arc
+  const centerX = avg.trueX + (diffY * ratio);
+  const centerY = avg.trueY - (diffX * ratio);
 
-  var startAngle = Math.atan2(y1 - centerY, x1 - centerX);
-  var endAngle = Math.atan2(y2 - centerY, x2 - centerX);
+  const startAngle = Math.atan2(p1.trueY - centerY, p1.trueX - centerX);
+  const endAngle = Math.atan2(p2.trueY - centerY, p2.trueX - centerX);
+
   ctx.arc(centerX, centerY, r, startAngle, endAngle, cc);
 }
 
-// xyList is an array of x,y coords
+// ptList is an array of coords
 // ccList is an optional array (of equal length) of counterclockwise booleans
-// ccList[i] refers to arc between xyList[i] and xyList[i+1]
+// ccList[i] refers to arc between ptList[i] and ptList[i+1]
 // It is the caller's responsibility to call ctx.stroke() after this.
-function drawArcCycle(ctx, xyList, ccList) {
+function drawArcCycle(ctx, ptList, ccList) {
   // default to all clockwise if no ccList given
-  ccList = ccList || Array(xyList.length).fill(false);
+  ccList = ccList || Array(ptList.length).fill(false);
 
   ctx.beginPath();
 
-  let x0,y0,x1,x2,y1,y2;
-  for (let i=0; i<xyList.length-1; i++) {
-    [x1,y1] = xyList[i];
-    [x2,y2] = xyList[i+1];
-    drawArc(ctx, x1,y1,x2,y2,ccList[i]);
+  const lastIndex = ptList.length-1;
+  for (let i=0; i<lastIndex; i++) {
+    drawArc(ctx, ptList[i], ptList[i+1], ccList[i]);
   }
-  [x0,y0] = xyList[0];
-  drawArc(ctx, x2,y2,x0,y0,ccList[ccList.length-1]);
+  drawArc(ctx, ptList[lastIndex], ptList[0], ccList[lastIndex]);
 }
 
-const allSolutions =
+const oldSolutions =
  [
    [
      [-3,1.5,3,false],
@@ -10133,3 +10158,13 @@ const allSolutions =
      [-2,1,-1,false],
    ],
  ];
+
+const allSolutions = [];
+for (const s of oldSolutions) {
+  const newSolution = []
+  for (const pieceArr of s) {
+    const newArr = [new xyCoord(pieceArr[0], pieceArr[1]), pieceArr[2], pieceArr[3]];
+    newSolution.push(newArr);
+  }
+  allSolutions.push(newSolution);
+}
