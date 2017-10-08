@@ -628,9 +628,9 @@ function onMouseDown(event) {
   if (clickedPieces.length) {
     clickedPieces.sort((p1, p2) => p2.above(p1));  //sort top to bottom
     myGame.select(clickedPieces[0], clickX, clickY);
-  }
 
-  myGame.dragging = true;
+    myGame.dragging = true;
+  }
 }
 
 function onMouseMove(event) {
