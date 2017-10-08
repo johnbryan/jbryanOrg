@@ -14,18 +14,25 @@ const yFactor = -r;
 const thetaFactor = Math.PI/6;
 
 class xyCoord {
-  constructor(x, y, isTrueCoords) {
+  constructor(x, y, isTrueCoords, snapToGrid) {
     // default values assume falseCoords
     this.x = x;
     this.y = y;
     this.trueX = x * xFactor + boardX;
     this.trueY = y * yFactor + boardY;
 
-    if (isTrueCoords) {
-      this.x = Math.round((x - boardX) / xFactor),
-      this.y = Math.round((y - boardY) / yFactor * 2) / 2,
+    if (isTrueCoords && !snapToGrid) {
+      this.x = (x - boardX) / xFactor;
+      this.y = ((y - boardY) / yFactor * 2) / 2;
       this.trueX = x;
       this.trueY = y;
+    }
+
+    if (isTrueCoords && snapToGrid) {
+      this.x = Math.round((x - boardX) / xFactor);
+      this.y = Math.round((y - boardY) / yFactor * 2) / 2;
+      this.trueX = this.x * xFactor + boardX;
+      this.trueY = this.y * yFactor + boardY;
     }
   }
 

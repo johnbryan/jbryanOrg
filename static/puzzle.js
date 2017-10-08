@@ -381,7 +381,7 @@ class game {
     const trueY = mouseY - this.relClickY;
 
     this.selectedPiece.setPosition(
-        new xyCoord(trueX, trueY, true),
+        new xyCoord(trueX, trueY, true, true),
         this.selectedPiece.theta,
         this.selectedPiece.flipped);
   }
