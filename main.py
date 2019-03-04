@@ -23,6 +23,9 @@ def index():
 def puzzle():
     return render_template('puzzle.html')
 
+@app.route('/dena')
+def dena():
+    return render_template('dena.html')
 
 @app.errorhandler(404)
 def page_not_found(e):
