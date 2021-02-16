@@ -2,12 +2,12 @@ const deg15 = Math.PI / 12;
 const deg30 = Math.PI / 6;
 const deg60 = Math.PI / 3;
 
-const r = 70;
+const r = 60;
 const h = r * Math.sqrt(3)/2;
 
 // outerPts are relative to this position
 const boardX = 400;
-const boardY = 500;
+const boardY = 420;
 
 const xFactor = h;
 const yFactor = -r;
@@ -10170,7 +10170,11 @@ const allSolutions = [];
 for (const s of oldSolutions) {
   const newSolution = []
   for (const pieceArr of s) {
-    const newArr = [new xyCoord(pieceArr[0], pieceArr[1]), pieceArr[2], pieceArr[3]];
+    const newArr = [
+        new xyCoord(pieceArr[0], pieceArr[1]),
+        pieceArr[2],
+        pieceArr[3],
+    ];
     newSolution.push(newArr);
   }
   allSolutions.push(newSolution);
